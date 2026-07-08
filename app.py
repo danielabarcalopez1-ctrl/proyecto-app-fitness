@@ -2,73 +2,136 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import datetime
-import plotly.express as px # Asegúrate de añadir 'plotly' a tu requirements.txt
+import plotly.graph_objects as go # Usaremos graph_objects para mayor control en los anillos
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Cal.ai Style Dashboard", page_icon="🍎", layout="centered")
+st.set_page_config(page_title="Cal.AI Style App", page_icon="🍎", layout="centered")
 
-# --- ESTILO PERSONALIZADO (CSS para imitar la UI de Cal.ai) ---
-# Fondo claro, tarjetas blancas con sombra, fuentes limpias
+# --- CSS PERSONALIZADO (Estilo Cal.ai) ---
 st.markdown("""
     <style>
-    /* Fondo general muy claro */
+    /* Fondo general */
     .stApp {
-        background-color: #f9f9f9;
+        background-color: #f3f4f6; /* Gris muy claro */
     }
     
-    /* Encabezado */
-    h1, h2, h3 {
-        color: #111827;
+    /* Encabezado (Fecha y Logo) */
+    .header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 0;
+    }
+    .logo-text {
+        font-size: 1.25rem;
+        font-weight: bold;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #111827;
+    }
+    .date-selector {
+        display: flex;
+        gap: 15px;
+        font-size: 0.875rem;
+        color: #6b7280;
+        cursor: pointer;
+    }
+    .selected-date {
+        color: #111827;
+        font-weight: 600;
+        border-bottom: 2px solid #111827;
     }
 
-    /* Tarjeta principal flotante (estilo overlay) */
-    .floating-card {
+    /* Tarjeta Principal (Calorías) */
+    .main-card {
         background-color: #ffffff;
         padding: 25px;
         border-radius: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         margin-bottom: 25px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
-    
-    /* Texto de números grandes */
-    .big-number {
+    .calories-number {
         font-size: 3rem;
         font-weight: 800;
         color: #111827;
         line-height: 1;
     }
-    .small-label {
+    .calories-label {
         font-size: 0.875rem;
         color: #6b7280;
-        margin-bottom: 5px;
+        margin-top: 5px;
     }
 
-    /* Pequeñas tarjetas de macros */
-    .macro-card {
-        background-color: #f3f4f6;
-        padding: 15px;
-        border-radius: 12px;
-        text-align: center;
+    /* Tarjetas de Macros (Proteína, Carbs, Grasas) */
+    .macros-container {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 30px;
     }
-    .macro-value {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #111827;
+    .macro-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        flex: 1;
+        text-align: center;
+        position: relative;
     }
     .macro-label {
         font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        color: #6b7280;
+        margin-bottom: 8px;
+    }
+    .macro-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #111827;
+    }
+
+    /* Sección Recientemente Subidos */
+    .section-title {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 15px;
+    }
+    .food-item-card {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .food-item-left {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    .food-icon {
+        font-size: 1.5rem;
+    }
+    .food-details {
+        font-size: 0.875rem;
+    }
+    .food-name {
         font-weight: 600;
+        color: #111827;
+    }
+    .food-kcal {
+        color: #6b7280;
+    }
+    .food-time {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        text-align: right;
     }
     
-    /* Barra de progreso (usaremos la nativa, pero estilizaremos su contenedor) */
-    .stProgress > div > div {
-        background-color: #10b981; /* Color verde de la meta */
-    }
-    
-    /* Botón de acción flotante (estilo '+') */
+    /* Botón Flotante '+') */
     .stButton > button.st-primary {
         background-color: #111827 !important;
         color: white !important;
@@ -81,13 +144,13 @@ st.markdown("""
         position: fixed !important;
         bottom: 30px !important;
         right: 30px !important;
-        z-index: 999 !important;
+        z-index: 9999 !important;
     }
     .stButton > button.st-primary:hover {
         background-color: #1f2937 !important;
     }
 
-    /* Ocultar el header y footer de Streamlit para una experiencia más app */
+    /* Ocultar el header/footer de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -104,116 +167,140 @@ c.execute('''CREATE TABLE IF NOT EXISTS alimentos (
                 carbs REAL,
                 grasas REAL,
                 kcal REAL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 fecha DATE)''')
 conn.commit()
 
-# Lógica para obtener datos de hoy
+# --- LÓGICA DE DATOS ---
 fecha_hoy = datetime.date.today()
 
 def get_totals_for_today():
-    df = pd.read_sql_query(f"SELECT * FROM alimentos WHERE fecha = '{fecha_hoy}'", conn)
+    # Asumimos que ya existe una columna fecha por los commits anteriores
+    df = pd.read_sql(f"SELECT * FROM alimentos WHERE fecha = '{fecha_hoy}'", conn)
     if df.empty:
         return 0, 0, 0, 0
     return df['prot'].sum(), df['carbs'].sum(), df['grasas'].sum(), df['kcal'].sum()
 
 total_p, total_c, total_g, total_k = get_totals_for_today()
-meta_cal = 2000 # Meta de ejemplo
+meta_cal = 2500 # Meta de ejemplo
 
-# Título superior (como en la app)
-st.markdown(f"### 🍎 Cal AI  |  {fecha_hoy.strftime('%a, %b %d')}")
+# --- INTERFAZ UI ---
 
-# --- TARJETA FLOTANTE PRINCIPAL (Calorías) ---
+# 1. Cabecera
 st.markdown("""
-<div class="floating-card">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            <div class="small-label">Calories earen</div>
-            <div class="big-number">{:.0f}<span style="font-size: 1rem; color: #6b7280;">/{:.0f}</span></div>
-        </div>
-        <div>
-            <div class="small-label" style="text-align: right;">Streak</div>
-            <div class="big-number" style="text-align: right; color: #f59e0b;">🔥 15</div>
-        </div>
+<div class="header-container">
+    <div class="logo-text">🍎 Cal AI</div>
+    <div class="date-selector">
+        <div>Today</div>
+        <div>Yesterday</div>
     </div>
-    <br>
-    <div style="background-color: #e5e7eb; border-radius: 10px; height: 8px;">
-        <div style="background-color: #10b981; width: {:.0f}%; height: 8px; border-radius: 10px;"></div>
-    </div>
-    <div class="small-label" style="text-align: center; margin-top: 5px;">{:.0f}% of goal</div>
 </div>
-""".format(total_k, meta_cal, (total_k / meta_cal) * 100 if meta_cal > 0 else 0, (total_k / meta_cal) * 100 if meta_cal > 0 else 0), unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
+# 2. Tarjeta Principal (Calorías)
+st.markdown(f"""
+<div class="main-card">
+    <div>
+        <div class="calories-number">{total_k:.0f}</div>
+        <div class="calories-label">Calories left</div>
+    </div>
+    <div>
+        {create_progress_donut(total_k, meta_cal, "#10b981")} </div>
+</div>
+""", unsafe_allow_html=True)
 
-# --- PANELES DE RESUMEN DE MACROS (Estilo Cal.ai) ---
+# 3. Tarjetas de Macros
+def create_progress_donut(current, goal, color):
+    # Función auxiliar para generar el anillo con Plotly
+    value = min(current, goal)
+    remaining = goal - value
+    fig = go.Figure(data=[go.Pie(
+        values=[value, remaining],
+        hole=.85,
+        marker_colors=[color, '#e5e7eb'], # Color de meta, color de fondo
+        textinfo='none',
+        hoverinfo='none',
+        direction='clockwise',
+        sort=False
+    )])
+    fig.update_layout(
+        showlegend=False,
+        margin=dict(t=0, b=0, l=0, r=0),
+        height=70,
+        width=70,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return st.plotly_chart(fig, config={'displayModeBar': False}, use_container_width=False)
+
 col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown("""<div class="macro-card">""", unsafe_allow_html=True)
+    create_progress_donut(total_p, 150, "#ef4444") # Meta prot 150g
+    st.markdown(f"""<div class="macro-label">Protein over</div><div class="macro-value">{total_p:.0f}g</div></div>""", unsafe_allow_html=True)
+with col2:
+    st.markdown("""<div class="macro-card">""", unsafe_allow_html=True)
+    create_progress_donut(total_c, 250, "#f97316") # Meta carbs 250g
+    st.markdown(f"""<div class="macro-label">Carbs left</div><div class="macro-value">{total_c:.0f}g</div></div>""", unsafe_allow_html=True)
+with col3:
+    st.markdown("""<div class="macro-card">""", unsafe_allow_html=True)
+    create_progress_donut(total_g, 65, "#3b82f6") # Meta grasas 65g
+    st.markdown(f"""<div class="macro-label">Fats left</div><div class="macro-value">{total_g:.0f}g</div></div>""", unsafe_allow_html=True)
 
-def macro_card(col, label, value, goal, color):
-    percent = (value / goal * 100) if goal > 0 else 0
-    col.markdown(f"""
-    <div class="macro-card">
-        <div class="macro-label" style="color: {color};">{label}</div>
-        <div class="macro-value">{value:.0f}<span style="font-size: 1rem; color: #6b7280;">/{goal:.0f}g</span></div>
-        <br>
-        <div style="background-color: #d1d5db; border-radius: 10px; height: 6px;">
-             <div style="background-color: {color}; width: {percent}%; height: 6px; border-radius: 10px;"></div>
+
+# 4. Sección Recientemente Subidos
+st.markdown("""<div class="section-title">Recently uploaded</div>""", unsafe_allow_html=True)
+
+# Obtener y mostrar los ítems recientes de hoy
+df_recent = pd.read_sql(f"SELECT * FROM alimentos WHERE fecha = '{fecha_hoy}' ORDER BY timestamp DESC LIMIT 5", conn)
+
+for index, row in df_recent.iterrows():
+    # Usaremos un icono por defecto para la comida
+    st.markdown(f"""
+    <div class="food-item-card">
+        <div class="food-item-left">
+            <div class="food-icon">🍲</div>
+            <div class="food-details">
+                <div class="food-name">{row['nombre']}</div>
+                <div class="food-kcal">{row['kcal']:.0f} calories</div>
+            </div>
+        </div>
+        <div class="food-time">
+            {pd.to_datetime(row['timestamp']).strftime('%I:%M %p')}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-macro_card(col1, "Protein", total_p, 150, "#ef4444") # Meta de proteína de ejemplo
-macro_card(col2, "Carbs", total_c, 250, "#f97316") # Meta de carbohidratos de ejemplo
-macro_card(col3, "Fat", total_g, 65, "#3b82f6") # Meta de grasas de ejemplo
-
-st.write("---")
-
-# --- SECCIÓN RECIENTEMENTE SUBIDOS (Tabla y gráfico) ---
-st.subheader("Recently uploaded")
-
-# Mostrar la tabla de datos debajo
-df_hoy = pd.read_sql(f"SELECT nombre, kcal, prot, carbs, grasas FROM alimentos WHERE fecha = '{fecha_hoy}'", conn)
-st.dataframe(df_hoy, use_container_width=True, hide_index=True)
-
-# Gráfico visual (tipo anillo) para el día actual
-if total_p + total_c + total_g > 0:
-    macros_data = {
-        'Macro': ['Protein', 'Carbs', 'Fat'],
-        'Gramos': [total_p, total_c, total_g]
-    }
-    fig = px.pie(macros_data, values='Gramos', names='Macro', hole=0.8, color='Macro', 
-                 color_discrete_map={'Protein': '#ef4444', 'Carbs': '#f97316', 'Fat': '#3b82f6'})
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    fig.update_layout(showlegend=False, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=0, b=0, l=0, r=0))
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-else:
-    st.info("Log your first meal of the day using the '+' button.")
-
-# --- BOTÓN DE ACCIÓN FLOTANTE (El '+') ---
-# Al hacer clic, esto abrirá una ventana modal (para un input más complejo)
+# 5. Botón Flotante '+' (Abre el panel lateral para loggear comida)
 if st.button("+", type="primary"):
-    st.session_state['show_modal'] = True
+    st.session_state['show_log_modal'] = True
 
-# Lógica para mostrar un modal simple (usando st.dialog en versiones modernas de Streamlit, o un expansor/sidebar)
-# Para mantenerlo simple y compatible con el diseño ahora mismo, usaremos el sidebar como panel lateral de entrada
-# pero con un botón principal en el menú inferior.
+# --- PANEL DE ENTRADA (SIDEBAR MEJORADO) ---
 with st.sidebar:
     st.header("Log Food")
-    nombre = st.text_input("Food Name")
+    nombre_input = st.text_input("Food Name")
     c1, c2 = st.columns(2)
     with c1:
-        prot_in = st.number_input("Protein (g)", min_value=0.0)
+        prot_input = st.number_input("Protein (g)", min_value=0.0)
     with c2:
-        carbs_in = st.number_input("Carbs (g)", min_value=0.0)
+        carb_input = st.number_input("Carbs (g)", min_value=0.0)
     c3, c4 = st.columns(2)
     with c3:
-        fat_in = st.number_input("Fat (g)", min_value=0.0)
+        fat_input = st.number_input("Fat (g)", min_value=0.0)
     
-    # Calculo automático de calorías (simplificado)
-    kcal_est = (prot_in * 4) + (carbs_in * 4) + (fat_in * 9)
-    st.write(f"**Estimated Calories: {kcal_est:.0f} kcal**")
+    # Calculo automático simplificado de calorías
+    kcal_calc = (prot_input * 4) + (carb_input * 4) + (fat_input * 9)
+    st.write(f"**Estimated Calories: {kcal_calc:.0f} kcal**")
 
-    if st.button("Add to Today's Log"):
+    if st.button("Add to Log"):
         c.execute("INSERT INTO alimentos (nombre, prot, carbs, grasas, kcal, fecha) VALUES (?,?,?,?,?,?)", 
-                    (nombre, prot_in, carbs_in, fat_in, kcal_est, fecha_hoy))
+                    (nombre_input, prot_input, carb_input, fat_input, kcal_calc, fecha_hoy))
         conn.commit()
         st.success("✅ Logged")
         st.rerun() # Actualizar la página
+
+# --- PASOS TÉCNICOS PARA QUE FUNCIONE ---
+
+# Si no lo hiciste antes, tu base de datos necesita la columna 'timestamp'
+# Para solucionarlo, borra el archivo dieta.db de GitHub. Streamlit creará la base de datos con la nueva estructura al reiniciar.
+# Además, asegúrate de añadir 'plotly' y 'pandas' a tu requirements.txt.
