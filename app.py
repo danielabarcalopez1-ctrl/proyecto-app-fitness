@@ -111,7 +111,7 @@ conn.commit()
 fecha_hoy = datetime.date.today()
 
 def get_totals_for_today():
-    df = pd.read_sql(f"SELECT * FROM alimentos WHERE fecha = '{fecha_hoy}'", conn)
+    df = pd.read_sql_query(f"SELECT * FROM alimentos WHERE fecha = '{fecha_hoy}'", conn)
     if df.empty:
         return 0, 0, 0, 0
     return df['prot'].sum(), df['carbs'].sum(), df['grasas'].sum(), df['kcal'].sum()
